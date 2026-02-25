@@ -3,14 +3,14 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use std::io::{self, Write};
-
+use helpers::clear_screen;
 fn main() -> io::Result<()> {
     let options = ["continue", "exit"];
     let mut selected = 1; // start on "exit"
 
     loop {
         // Draw menu
-        print!("\x1B[2J\x1B[1;1H"); // clear screen, cursor to top
+        clear_screen(); // clear screen, cursor to top
         for (i, opt) in options.iter().enumerate() {
             let mark = if i == selected { "\x1b[32m■\x1b[0m" } else { "\x1b[32m☐\x1b[0m" };
             println!("- {} {}", mark, opt);

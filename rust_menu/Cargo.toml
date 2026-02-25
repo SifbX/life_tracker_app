@@ -5,3 +5,6 @@ edition = "2021"
 
 [dependencies]
 crossterm = "0.28"
+
+[lib]
+path = "src/helpers.rs"
