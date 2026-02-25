@@ -12,12 +12,12 @@ fn main() -> io::Result<()> {
         // Draw menu
         print!("\x1B[2J\x1B[1;1H"); // clear screen, cursor to top
         for (i, opt) in options.iter().enumerate() {
-            let mark = if i == selected { "[x]" } else { "[ ]" };
+            let mark = if i == selected { "\x1b[32m■\x1b[0m" } else { "\x1b[32m☐\x1b[0m" };
             println!("- {} {}", mark, opt);
         }
         io::stdout().flush()?;
 
-        enable_raw_mode()?;
+        enable_raw_mode().unwrap();
         loop {
             if let Event::Key(key) = event::read()? {
                 if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
