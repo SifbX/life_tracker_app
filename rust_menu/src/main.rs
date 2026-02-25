@@ -3,7 +3,8 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use std::io::{self, Write};
-use rust_menu::helpers::clear_screen;
+mod helpers;
+use helpers::clear_screen;
 fn main() -> io::Result<()> {
     let options = ["continue", "exit"];
     let mut selected = 1; // start on "exit"
