@@ -7,4 +7,4 @@ edition = "2021"
 crossterm = "0.28"
 
 [lib]
-path = "src/helpers.rs"
+path = "src/lib.rs"

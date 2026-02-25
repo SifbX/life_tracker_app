@@ -3,7 +3,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use std::io::{self, Write};
-use helpers::clear_screen;
+use rust_menu::helpers::clear_screen;
 fn main() -> io::Result<()> {
     let options = ["continue", "exit"];
     let mut selected = 1; // start on "exit"
@@ -17,7 +17,7 @@ fn main() -> io::Result<()> {
         }
         io::stdout().flush()?;
 
-        enable_raw_mode().unwrap();
+        enable_raw_mode()?;
         loop {
             if let Event::Key(key) = event::read()? {
                 if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
