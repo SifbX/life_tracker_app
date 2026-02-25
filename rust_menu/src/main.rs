@@ -1,10 +1,12 @@
+mod helpers;
+
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use std::io::{self, Write};
-mod helpers;
-use helpers::clear_screen;
+
+use helpers::{clear_screen, GREEN_BLOCK, GREEN_EMPTY_BLOCK};
 fn main() -> io::Result<()> {
     let options = ["continue", "exit"];
     let mut selected = 1; // start on "exit"
@@ -13,7 +15,7 @@ fn main() -> io::Result<()> {
         // Draw menu
         clear_screen(); // clear screen, cursor to top
         for (i, opt) in options.iter().enumerate() {
-            let mark = if i == selected { "\x1b[32m■\x1b[0m" } else { "\x1b[32m☐\x1b[0m" };
+            let mark = if i == selected { GREEN_BLOCK } else { GREEN_EMPTY_BLOCK };
             println!("- {} {}", mark, opt);
         }
         io::stdout().flush()?;
