@@ -1,53 +1,40 @@
 mod helpers;
 
-use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
-    terminal::{disable_raw_mode, enable_raw_mode},
-};
-use std::io::{self, Write};
+use helpers::show_menu;
+use std::io;
 
-use helpers::{clear_screen, GREEN_BLOCK, GREEN_EMPTY_BLOCK};
+enum Screen {
+    Main,
+    Menu1,
+    Exit,
+}
+
 fn main() -> io::Result<()> {
-    let options = ["continue", "exit"];
-    let mut selected = 1; // start on "exit"
+    let mut screen = Screen::Main;
 
     loop {
-        // Draw menu
-        clear_screen(); // clear screen, cursor to top
-        for (i, opt) in options.iter().enumerate() {
-            let mark = if i == selected { GREEN_BLOCK } else { GREEN_EMPTY_BLOCK };
-            println!("- {} {}", mark, opt);
-        }
-        io::stdout().flush()?;
-
-        enable_raw_mode()?;
-        loop {
-            if let Event::Key(key) = event::read()? {
-                if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
-                    continue;
-                }
-                match key.code {
-                    KeyCode::Up => {
-                        selected = selected.saturating_sub(1);
-                        break;
-                    }
-                    KeyCode::Down => {
-                        selected = (selected + 1).min(options.len() - 1);
-                        break;
-                    }
-                    KeyCode::Enter => {
-                        disable_raw_mode()?;
-                        match selected {
-                            0 => break, // continue - do nothing, re-show menu
-                            1 => return Ok(()), // exit
-                            _ => break,
-                        }
-                    }
-                    _ => {}
+        screen = match screen {
+            Screen::Main => {
+                let options = ["continue", "menu 1", "exit"];
+                match show_menu("Main Menu", &options)? {
+                    0 => Screen::Main,
+                    1 => Screen::Menu1,
+                    2 => Screen::Exit,
+                    _ => Screen::Main,
                 }
             }
-        }
-        disable_raw_mode()?;
+            Screen::Menu1 => {
+                let options = ["continue", "main menu", "exit"];
+                match show_menu("Menu 1", &options)? {
+                    0 => Screen::Menu1,
+                    1 => Screen::Main,
+                    2 => Screen::Exit,
+                    _ => Screen::Menu1,
+                }
+            }
+            Screen::Exit => break,
+        };
     }
 
+    Ok(())
 }
