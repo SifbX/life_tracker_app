@@ -1,7 +1,3 @@
-use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
-    terminal::{disable_raw_mode, enable_raw_mode},
-};
 use std::io::{self, Write};
 
 
@@ -39,7 +35,7 @@ impl Column {
     }
 }
 
-struct HeaderRow {
+pub struct HeaderRow {
     row_values: Vec<&'static str>,
     row_widths: Vec<usize>,
 }
@@ -52,7 +48,7 @@ impl HeaderRow {
 }
 
 
-struct HeaderCol {
+pub struct HeaderCol {
     col_values: Vec<&'static str>,
     width: usize,
 }
@@ -65,8 +61,8 @@ impl HeaderCol {
 }
 
 
-struct Body {
-    body: Vec<Column>,
+pub struct Body {
+    pub body: Vec<Column>,
     grid: (usize, usize),
     selected_cell: Option<(usize, usize)>,
 
@@ -114,12 +110,33 @@ impl Body {
     pub fn change_focused_cell(&mut self, grid: (usize, usize)) {
         self.selected_cell = Some(grid);
     }
+
+    pub fn selected_cell(&self) -> Option<(usize, usize)> {
+        self.selected_cell
+    }
+
+    pub fn get_value(&self, col: usize, row: usize) -> Option<&str> {
+        self.body.get(col).and_then(|c| c.cells.get(row)).map(|c| c.value.as_str())
+    }
+
+    pub fn rows(&self) -> usize { self.grid.0 }
+    pub fn cols(&self) -> usize { self.grid.1 }
+
+    pub fn update_focus(&mut self) {
+        if let Some((sc, sr)) = self.selected_cell {
+            for c in 0..self.body.len() {
+                for r in 0..self.body[c].cells.len() {
+                    self.body[c].cells[r].is_focused = (c == sc && r == sr);
+                }
+            }
+        }
+    }
 }
 
-struct Table {
+pub struct Table {
     header_row: Option<HeaderRow>,
     header_col: Option<HeaderCol>,
-    body: Body,
+    pub body: Body,
     raw_string: String,
 }
 
@@ -159,7 +176,7 @@ impl Table {
         table
     }
 
-    pub fn compile_table(&mut self) {
+    pub fn compile(&mut self) {
         self.raw_string = String::new();
         if let Some(header_row) = &self.header_row {
             self.raw_string.push_str(&header_row.row_values.join(" "));
@@ -171,6 +188,34 @@ impl Table {
         }
     }
 
+    pub fn body_mut(&mut self) -> &mut Body {
+        &mut self.body
+    }
 
-
+    pub fn draw(&mut self) {
+        const GREEN: &str = "\x1b[32m";
+        const RESET: &str = "\x1b[0m";
+        self.body.update_focus();
+        let rows = self.body.rows();
+        let cols = self.body.cols();
+        for r in 0..=rows {
+            for c in 0..cols {
+                let top_focused = r < rows && self.body.body[c].cells[r].is_focused;
+                let bottom_focused = r > 0 && r <= rows && self.body.body[c].cells[r - 1].is_focused;
+                let highlight = top_focused || bottom_focused;
+                let color = if highlight { GREEN } else { RESET };
+                print!("{}+---{}", color, RESET);
+            }
+            println!("+");
+            if r < rows {
+                for c in 0..cols {
+                    let focused = self.body.body[c].cells[r].is_focused;
+                    let color = if focused { GREEN } else { RESET };
+                    print!("{}|{} {} ", color, color, self.body.body[c].cells[r].value);
+                }
+                let last_focused = cols > 0 && self.body.body[cols - 1].cells[r].is_focused;
+                println!("{}|{}", if last_focused { GREEN } else { RESET }, RESET);
+            }
+        }
+    }
 }
