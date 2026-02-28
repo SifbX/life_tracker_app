@@ -193,26 +193,21 @@ impl Table {
         for r in 0..=rows {
             let mut line = String::new();
             for c in 0..cols {
-                let w: usize = self.body.body[c].max_width;
-                let top_focused = r < rows && self.body.body[c].cells[r].is_focused;
-                let bottom_focused = r > 0 && r <= rows && self.body.body[c].cells[r - 1].is_focused;
-                let highlight = top_focused || bottom_focused;
-                let color = if highlight { GREEN } else { RESET };
-                line.push_str(&format!("{}+{:-<width$}{}", color, "", RESET, width = w + 2));
+                line.push_str(&self.make_corner((r, c)));
+                let w = self.body.body[c].max_width;
+                line.push_str(&self.make_vertical_line(w, (r, c)));
             }
-            line.push_str("+\n");
+            line.push_str(&self.make_corner((r, cols)));
+            line.push_str("\n");
             self.raw_strings.push(line);
             if r < rows {
                 let mut line = String::new();
                 for c in 0..cols {
-                    let w = self.body.body[c].max_width;
-                    let focused = self.body.body[c].cells[r].is_focused;
-                    let color = if focused { GREEN } else { RESET };
-                    let val = &self.body.body[c].cells[r].value;
-                    line.push_str(&format!("{}|{} {:^width$} {}", color, color, val, format!("{}", RESET), width = w));
+                    line.push_str(&self.make_horizontal_line(0, (r, c)));
+                    line.push_str(&self.make_value(&self.body.body[c].cells[r].value, (r, c)));
                 }
-                let last_focused = cols > 0 && self.body.body[cols - 1].cells[r].is_focused;
-                line.push_str(&format!("{}|{}\n", if last_focused { GREEN } else { RESET }, RESET));
+                line.push_str(&self.make_horizontal_line(0, (r, cols)));
+                line.push_str("\n");
                 self.raw_strings.push(line);
             }
         }
@@ -221,24 +216,21 @@ impl Table {
     fn make_corner(&self, grids: (usize, usize)) -> String {
         let mut is_highlighted: bool = false;
         let height: usize = self.body.rows();
-        let width: usize = self.body.cols();
+        let cols: usize = self.body.cols();
         let h: usize = grids.0;
         let w: usize = grids.1;
 
-        if (0 < h && h < height) && (0 < w && w < width) {
-            is_highlighted |= self.body.body[h].cells[w].is_focused;
-        } 
-
-        if (0 < h - 1 && h - 1 < height) && (0 < w && w < width) {
-            is_highlighted |= self.body.body[h - 1].cells[w].is_focused;
-        } 
-
-        if (0 < h && h < height) && (0 < w - 1 && w - 1 < width) {
-            is_highlighted |= self.body.body[h].cells[w - 1].is_focused;
-        } 
-
-        if (0 < h - 1 && h - 1 < height) && (0 < w - 1 && w - 1 < width) {
-            is_highlighted |= self.body.body[h - 1].cells[w - 1].is_focused;
+        if h < height && w < cols {
+            is_highlighted |= self.body.body[w].cells[h].is_focused;
+        }
+        if h > 0 && h - 1 < height && w < cols {
+            is_highlighted |= self.body.body[w].cells[h - 1].is_focused;
+        }
+        if h < height && w > 0 && w - 1 < cols {
+            is_highlighted |= self.body.body[w - 1].cells[h].is_focused;
+        }
+        if h > 0 && h - 1 < height && w > 0 && w - 1 < cols {
+            is_highlighted |= self.body.body[w - 1].cells[h - 1].is_focused;
         } 
 
         if is_highlighted {
@@ -251,60 +243,65 @@ impl Table {
     fn make_vertical_line(&self, width: usize, grids: (usize, usize)) -> String {
         let mut is_highlighted: bool = false;
         let height: usize = self.body.rows();
-        let w: usize = grids.1;
+        let cols: usize = self.body.cols();
         let h: usize = grids.0;
+        let w: usize = grids.1;
 
-        if (0 < h && h < height) && (0 < w && w < width) {
-            is_highlighted |= self.body.body[h].cells[w].is_focused;
-        } 
-
-        if (0 < h - 1 && h - 1 < height) && (0 < w && w < width) {
-            is_highlighted |= self.body.body[h - 1].cells[w].is_focused;
-        } 
-
-        if is_highlighted {
-            format!("{}{:<width$}{}", GREEN, HORIZONTAL, RESET, width = width + 2)
-        } else {
-            format!("{}{:<width$}{}", RESET, HORIZONTAL, RESET, width = width + 2)
+        if h < height && w < cols {
+            is_highlighted |= self.body.body[w].cells[h].is_focused;
+        }
+        if h > 0 && h - 1 < height && w < cols {
+            is_highlighted |= self.body.body[w].cells[h - 1].is_focused;
         }
 
+        if is_highlighted {
+            format!("{}{:-<width$}{}", GREEN, "", RESET, width = width + 2)
+        } else {
+            format!("{}{:-<width$}{}", RESET, "", RESET, width = width + 2)
+        }
     }
 
     fn make_horizontal_line(&self, width: usize, grids: (usize, usize)) -> String {
         let mut is_highlighted: bool = false;
         let height: usize = self.body.rows();
-        let w: usize = grids.1;
+        let cols: usize = self.body.cols();
         let h: usize = grids.0;
+        let w: usize = grids.1;
 
-        if (0 < h && h < height) && (0 < w && w < width) {
-            is_highlighted |= self.body.body[h].cells[w].is_focused;
-        } 
+        if h < height && w < cols {
+            is_highlighted |= self.body.body[w].cells[h].is_focused;
+        }
+        if w > 0 && w - 1 < cols && h < height {
+            is_highlighted |= self.body.body[w - 1].cells[h].is_focused;
+        }
 
-        if (0 < h - 1 && h - 1 < height) && (0 < w && w < width) {
-            is_highlighted |= self.body.body[h - 1].cells[w].is_focused;
-        } 
-
+        let wd = width.max(1);
         if is_highlighted {
-            format!("{}{}{}", GREEN, HORIZONTAL, RESET)
+            format!("{}{:>width$}{}", GREEN, VERTICAL, RESET, width = wd)
         } else {
-            format!("{}{}{}", RESET, HORIZONTAL, RESET)
+            format!("{}{:>width$}{}", RESET, VERTICAL, RESET, width = wd)
         }
     }
 
     fn make_value(&self, value: &str, grids: (usize, usize)) -> String {
         let mut is_highlighted: bool = false;
         let height: usize = self.body.rows();
-        let w: usize = grids.1;
+        let cols: usize = self.body.cols();
         let h: usize = grids.0;
-        let width: usize = self.body.body[w].max_width;
+        let w: usize = grids.1;
 
-        if (0 < h && h < height) && (0 < w && w < width) {
-            is_highlighted |= self.body.body[h].cells[w].is_focused;
-        } 
-        if is_highlighted {
-            format!("{}{:^width$}{}", GREEN, value, RESET, width = width)
+        if h < height && w < cols {
+            is_highlighted |= self.body.body[w].cells[h].is_focused;
+        }
+        let width: usize = if w < cols {
+            self.body.body[w].max_width
         } else {
-            format!("{}{:^width$}{}", RESET, value, RESET, width = width)
+            0
+        }; 
+        if is_highlighted {
+            format!("{}{:^width$}{}", GREEN, value, RESET, width = width + 2)
+        } else {
+            format!("{}{:^width$}{}", RESET, value, RESET, width = width + 2)
         }
     }
 
