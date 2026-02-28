@@ -8,26 +8,20 @@ use helpers::{clear_screen, Table};
 use std::io::{self, Write};
 
 fn main() -> io::Result<()> {
-    let mut table = Table::from_vec(
-        vec![
-            vec!["12232322", "43", "74"],
-            vec!["23", "54", "85"],
-            vec!["34", "65", "96"],
-            vec!["45", "76", "107"],
-            
-        ],
-        None,
-        None,
-    );
-    table.body_mut().change_focused_cell((0, 0));
+    let mut table = Table::new(vec![
+        vec!["12232322", "43", "74"],
+        vec!["23", "54", "85"],
+        vec!["34", "65", "96"],
+        vec!["45", "76", "107"],
+    ]);
+    table.change_focused_cell((0, 0));
 
     loop {
         table.compile();
         clear_screen();
         table.draw();
-        let body = table.body_mut();
-        let (col, row) = body.selected_cell().unwrap_or((0, 0));
-        let value = body.get_value(col, row).unwrap_or("");
+        let (col, row) = table.selected_cell().unwrap_or((0, 0));
+        let value = table.get_value(col, row).unwrap_or("");
         println!("\nSelected: {}", value);
         println!("Arrow keys to move  |  Enter to select  |  q to quit");
         io::stdout().flush()?;
@@ -39,14 +33,14 @@ fn main() -> io::Result<()> {
                 if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
                     continue;
                 }
-                let (mut c, mut r) = body.selected_cell().unwrap_or((0, 0));
-                let rows = body.rows();
-                let cols = body.cols();
+                let (mut c, mut r) = table.selected_cell().unwrap_or((0, 0));
+                let rows = table.rows();
+                let cols = table.cols();
                 match key.code {
-                    KeyCode::Up => { r = r.saturating_sub(1); body.change_focused_cell((c, r)); break; }
-                    KeyCode::Down => { r = (r + 1).min(rows - 1); body.change_focused_cell((c, r)); break; }
-                    KeyCode::Left => { c = c.saturating_sub(1); body.change_focused_cell((c, r)); break; }
-                    KeyCode::Right => { c = (c + 1).min(cols - 1); body.change_focused_cell((c, r)); break; }
+                    KeyCode::Up => { r = r.saturating_sub(1); table.change_focused_cell((c, r)); break; }
+                    KeyCode::Down => { r = (r + 1).min(rows - 1); table.change_focused_cell((c, r)); break; }
+                    KeyCode::Left => { c = c.saturating_sub(1); table.change_focused_cell((c, r)); break; }
+                    KeyCode::Right => { c = (c + 1).min(cols - 1); table.change_focused_cell((c, r)); break; }
                     KeyCode::Enter => {
                         disable_raw_mode()?;
                         println!("\nYou selected: {}", value);
