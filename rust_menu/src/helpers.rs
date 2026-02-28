@@ -1,6 +1,12 @@
 use std::io::{self, Write};
 
 
+const GREEN: &str = "\x1b[32m";
+const RESET: &str = "\x1b[0m";
+const CORNER: &str = "+";
+const VERTICAL: &str = "|";
+const HORIZONTAL: &str = "-";
+
 pub fn clear_screen() {
     print!("\x1B[2J\x1B[1;1H");
 }
@@ -118,6 +124,9 @@ impl Body {
     pub fn get_value(&self, col: usize, row: usize) -> Option<&str> {
         self.body.get(col).and_then(|c| c.cells.get(row)).map(|c| c.value.as_str())
     }
+    pub fn get_cell(&self, col: usize, row: usize) -> &Cell {
+        self.body.get(col).and_then(|c| c.cells.get(row)).unwrap()
+    }
 
     pub fn rows(&self) -> usize { self.grid.0 }
     pub fn cols(&self) -> usize { self.grid.1 }
@@ -137,12 +146,12 @@ pub struct Table {
     header_row: Option<HeaderRow>,
     header_col: Option<HeaderCol>,
     pub body: Body,
-    raw_string: String,
+    raw_strings: Vec<String>,
 }
 
 impl Table {
     fn new() -> Self {
-        Self { header_row: None, header_col: None, body: Body::new(), raw_string: String::new() }
+        Self { header_row: None, header_col: None, body: Body::new(), raw_strings: Vec::new() }
     }
 
     pub fn add_header_row(&mut self, mut header_row: HeaderRow) {
@@ -177,14 +186,125 @@ impl Table {
     }
 
     pub fn compile(&mut self) {
-        self.raw_string = String::new();
-        if let Some(header_row) = &self.header_row {
-            self.raw_string.push_str(&header_row.row_values.join(" "));
-            self.raw_string.push_str("\n");
+        self.body.update_focus();
+        let rows = self.body.rows();
+        let cols = self.body.cols();
+        self.raw_strings.clear();
+        for r in 0..=rows {
+            let mut line = String::new();
+            for c in 0..cols {
+                let w: usize = self.body.body[c].max_width;
+                let top_focused = r < rows && self.body.body[c].cells[r].is_focused;
+                let bottom_focused = r > 0 && r <= rows && self.body.body[c].cells[r - 1].is_focused;
+                let highlight = top_focused || bottom_focused;
+                let color = if highlight { GREEN } else { RESET };
+                line.push_str(&format!("{}+{:-<width$}{}", color, "", RESET, width = w + 2));
+            }
+            line.push_str("+\n");
+            self.raw_strings.push(line);
+            if r < rows {
+                let mut line = String::new();
+                for c in 0..cols {
+                    let w = self.body.body[c].max_width;
+                    let focused = self.body.body[c].cells[r].is_focused;
+                    let color = if focused { GREEN } else { RESET };
+                    let val = &self.body.body[c].cells[r].value;
+                    line.push_str(&format!("{}|{} {:^width$} {}", color, color, val, format!("{}", RESET), width = w));
+                }
+                let last_focused = cols > 0 && self.body.body[cols - 1].cells[r].is_focused;
+                line.push_str(&format!("{}|{}\n", if last_focused { GREEN } else { RESET }, RESET));
+                self.raw_strings.push(line);
+            }
         }
-        if let Some(header_col) = &self.header_col {
-            self.raw_string.push_str(&header_col.col_values.join(" "));
-            self.raw_string.push_str("\n");
+    }
+
+    fn make_corner(&self, grids: (usize, usize)) -> String {
+        let mut is_highlighted: bool = false;
+        let height: usize = self.body.rows();
+        let width: usize = self.body.cols();
+        let h: usize = grids.0;
+        let w: usize = grids.1;
+
+        if (0 < h && h < height) && (0 < w && w < width) {
+            is_highlighted |= self.body.body[h].cells[w].is_focused;
+        } 
+
+        if (0 < h - 1 && h - 1 < height) && (0 < w && w < width) {
+            is_highlighted |= self.body.body[h - 1].cells[w].is_focused;
+        } 
+
+        if (0 < h && h < height) && (0 < w - 1 && w - 1 < width) {
+            is_highlighted |= self.body.body[h].cells[w - 1].is_focused;
+        } 
+
+        if (0 < h - 1 && h - 1 < height) && (0 < w - 1 && w - 1 < width) {
+            is_highlighted |= self.body.body[h - 1].cells[w - 1].is_focused;
+        } 
+
+        if is_highlighted {
+            format!("{}{}{}", GREEN, CORNER, RESET)
+        } else {
+            format!("{}{}{}", RESET, CORNER, RESET)
+        }
+    }
+
+    fn make_vertical_line(&self, width: usize, grids: (usize, usize)) -> String {
+        let mut is_highlighted: bool = false;
+        let height: usize = self.body.rows();
+        let w: usize = grids.1;
+        let h: usize = grids.0;
+
+        if (0 < h && h < height) && (0 < w && w < width) {
+            is_highlighted |= self.body.body[h].cells[w].is_focused;
+        } 
+
+        if (0 < h - 1 && h - 1 < height) && (0 < w && w < width) {
+            is_highlighted |= self.body.body[h - 1].cells[w].is_focused;
+        } 
+
+        if is_highlighted {
+            format!("{}{:<width$}{}", GREEN, HORIZONTAL, RESET, width = width + 2)
+        } else {
+            format!("{}{:<width$}{}", RESET, HORIZONTAL, RESET, width = width + 2)
+        }
+
+    }
+
+    fn make_horizontal_line(&self, width: usize, grids: (usize, usize)) -> String {
+        let mut is_highlighted: bool = false;
+        let height: usize = self.body.rows();
+        let w: usize = grids.1;
+        let h: usize = grids.0;
+
+        if (0 < h && h < height) && (0 < w && w < width) {
+            is_highlighted |= self.body.body[h].cells[w].is_focused;
+        } 
+
+        if (0 < h - 1 && h - 1 < height) && (0 < w && w < width) {
+            is_highlighted |= self.body.body[h - 1].cells[w].is_focused;
+        } 
+
+        if is_highlighted {
+            format!("{}{}{}", GREEN, HORIZONTAL, RESET)
+        } else {
+            format!("{}{}{}", RESET, HORIZONTAL, RESET)
+        }
+    }
+
+    fn make_value(&self, value: &str, grids: (usize, usize)) -> String {
+        let mut is_highlighted: bool = false;
+        let height: usize = self.body.rows();
+        let w: usize = grids.1;
+        let h: usize = grids.0;
+        let width: usize = self.body.body[w].max_width;
+
+        if (0 < h && h < height) && (0 < w && w < width) {
+            is_highlighted |= self.body.body[h].cells[w].is_focused;
+        } 
+        if is_highlighted {
+            format!("{}{:^width$}{}", GREEN, value, RESET, width = width)
+        } else {
+            format!("{}{:^width$}{}", RESET, value, RESET, width = width)
         }
     }
 
@@ -192,30 +312,9 @@ impl Table {
         &mut self.body
     }
 
-    pub fn draw(&mut self) {
-        const GREEN: &str = "\x1b[32m";
-        const RESET: &str = "\x1b[0m";
-        self.body.update_focus();
-        let rows = self.body.rows();
-        let cols = self.body.cols();
-        for r in 0..=rows {
-            for c in 0..cols {
-                let top_focused = r < rows && self.body.body[c].cells[r].is_focused;
-                let bottom_focused = r > 0 && r <= rows && self.body.body[c].cells[r - 1].is_focused;
-                let highlight = top_focused || bottom_focused;
-                let color = if highlight { GREEN } else { RESET };
-                print!("{}+---{}", color, RESET);
-            }
-            println!("+");
-            if r < rows {
-                for c in 0..cols {
-                    let focused = self.body.body[c].cells[r].is_focused;
-                    let color = if focused { GREEN } else { RESET };
-                    print!("{}|{} {} ", color, color, self.body.body[c].cells[r].value);
-                }
-                let last_focused = cols > 0 && self.body.body[cols - 1].cells[r].is_focused;
-                println!("{}|{}", if last_focused { GREEN } else { RESET }, RESET);
-            }
+    pub fn draw(&self) {
+        for line in &self.raw_strings {
+            print!("{}", line);
         }
     }
 }

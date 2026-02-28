@@ -10,15 +10,17 @@ use std::io::{self, Write};
 fn main() -> io::Result<()> {
     let mut table = Table::from_vec(
         vec![
-            vec!["1", "4", "7"],
-            vec!["2", "5", "8"],
-            vec!["3", "6", "9"],
+            vec!["12232322", "43", "74"],
+            vec!["23", "54", "85"],
+            vec!["34", "65", "96"],
         ],
         None,
         None,
     );
+    table.body_mut().change_focused_cell((0, 0));
 
     loop {
+        table.compile();
         clear_screen();
         table.draw();
         let body = table.body_mut();
