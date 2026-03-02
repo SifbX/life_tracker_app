@@ -15,8 +15,8 @@ pub struct SubMenu {
 
 impl SubMenu {
     pub fn new(options: Vec<&'static str>) -> Self {
-        let height = options.len() * 2;
-        let width = options.iter().map(|o| o.len()).max().unwrap();
+        let height = options.len() * 2 + 2;
+        let width = options.iter().map(|o| o.len()).max().unwrap() + 4;
         Self { options, height, width }
     }
 }
@@ -113,8 +113,101 @@ impl Table {
         self.highlight_cell(row, col);
     }
 
-    pub fn allocate_for_submenu(&self, submenu: SubMenu) -> ((usize, usize), (usize, usize)) {
-        ((3, 3), (3, 3))
+    /// Returns ((row_start, row_end), (col_start, col_end)) in offset coordinates.
+    /// Searches for space near selected_grid: right first, then bottom, then left, then top.
+    /// For each direction, tries align-with-start first, then align-with-end.
+    pub fn allocate_for_submenu(&self, submenu: &SubMenu) -> Option<((usize, usize), (usize, usize))> {
+        let (row, col) = self.selected_grid?;
+        let menu_height = submenu.height;
+        let menu_width = submenu.width;
+
+        let total_rows = self.height();
+        let total_cols = self.width();
+        let max_row_offset = self.row_offsets[total_rows];
+        let max_col_offset = self.col_offsets[total_cols];
+
+        let sel_row_start = self.row_offsets[row];
+        let sel_row_end = self.row_offsets[row + 1];
+        let sel_col_start = self.col_offsets[col];
+        let sel_col_end = self.col_offsets[col + 1];
+
+        // Right: col (sel_col_end, sel_col_end + menu_width)
+        let right_width = max_col_offset - sel_col_end;
+        if right_width >= menu_width {
+            // A: align top - row (sel_row_start, sel_row_start + menu_height)
+            if sel_row_start + menu_height <= max_row_offset {
+                return Some((
+                    (sel_row_start, sel_row_start + menu_height),
+                    (sel_col_end, sel_col_end + menu_width),
+                ));
+            }
+            // B: align bottom - row (sel_row_end - menu_height, sel_row_end)
+            if sel_row_end >= menu_height {
+                return Some((
+                    (sel_row_end - menu_height, sel_row_end),
+                    (sel_col_end, sel_col_end + menu_width),
+                ));
+            }
+        }
+
+        // Bottom: row (sel_row_end, sel_row_end + menu_height)
+        let bottom_height = max_row_offset - sel_row_end;
+        if bottom_height >= menu_height {
+            // A: align left - col (sel_col_start, sel_col_start + menu_width)
+            if sel_col_start + menu_width <= max_col_offset {
+                return Some((
+                    (sel_row_end, sel_row_end + menu_height),
+                    (sel_col_start, sel_col_start + menu_width),
+                ));
+            }
+            // B: align right - col (sel_col_end - menu_width, sel_col_end)
+            if sel_col_end >= menu_width {
+                return Some((
+                    (sel_row_end, sel_row_end + menu_height),
+                    (sel_col_end - menu_width, sel_col_end),
+                ));
+            }
+        }
+
+        // Left: col (sel_col_start - menu_width, sel_col_start)
+        let left_width = sel_col_start;
+        if left_width >= menu_width {
+            // A: align top
+            if sel_row_start + menu_height <= max_row_offset {
+                return Some((
+                    (sel_row_start, sel_row_start + menu_height),
+                    (sel_col_start - menu_width, sel_col_start),
+                ));
+            }
+            // B: align bottom
+            if sel_row_end >= menu_height {
+                return Some((
+                    (sel_row_end - menu_height, sel_row_end),
+                    (sel_col_start - menu_width, sel_col_start),
+                ));
+            }
+        }
+
+        // Top: row (sel_row_start - menu_height, sel_row_start)
+        let top_height = sel_row_start;
+        if top_height >= menu_height {
+            // A: align left
+            if sel_col_start + menu_width <= max_col_offset {
+                return Some((
+                    (sel_row_start - menu_height, sel_row_start),
+                    (sel_col_start, sel_col_start + menu_width),
+                ));
+            }
+            // B: align right
+            if sel_col_end >= menu_width {
+                return Some((
+                    (sel_row_start - menu_height, sel_row_start),
+                    (sel_col_end - menu_width, sel_col_end),
+                ));
+            }
+        }
+
+        None
     }
 
     pub fn draw(&self) {
