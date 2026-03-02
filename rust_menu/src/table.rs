@@ -7,6 +7,22 @@ pub fn clear_screen() {
     print!("\x1B[2J\x1B[1;1H");
 }
 
+pub struct SubMenu {
+    options: Vec<&'static str>,
+    height: usize,
+    width: usize,
+}
+
+impl SubMenu {
+    pub fn new(options: Vec<&'static str>) -> Self {
+        let height = options.len() * 2;
+        let width = options.iter().map(|o| o.len()).max().unwrap();
+        Self { options, height, width }
+    }
+}
+
+
+
 pub struct Table {
     data: Vec<Vec<&'static str>>,
     selected_grid: Option<(usize, usize)>, // (row, col) row-major
@@ -14,6 +30,7 @@ pub struct Table {
     col_offsets: Vec<usize>,   // horizontal char offsets per column
     row_offsets: Vec<usize>,   // line offsets per row
     raw_data: Vec<String>,
+    displayed_data: Vec<String>,
 }
 
 impl Table {
@@ -30,16 +47,17 @@ impl Table {
         })
         .collect();
     
-        let col_offsets: Vec<usize> = col_widths
+        let mut col_offsets: Vec<usize> = col_widths
         .iter()
         .scan(0, |acc, val| {
             *acc += val + 3;
             Some(*acc)
         })
         .collect();
+        col_offsets.insert(0, 0);
 
         let rows = data.len();
-        let row_offsets: Vec<usize> = (1..=rows).map(|r| r * 2).collect();
+        let row_offsets: Vec<usize> = (0..=rows).map(|r| r * 2).collect();
 
         Self {
             data,
@@ -48,15 +66,16 @@ impl Table {
             col_offsets,
             row_offsets,
             raw_data: Vec::new(),
+            displayed_data: Vec::new(),
         }
     }
 
     pub fn height(&self) -> usize {
-        self.row_offsets.len()
+        self.row_offsets.len() - 1
     }
 
     pub fn width(&self) -> usize {
-        self.col_offsets.len()
+        self.col_offsets.len() - 1
     }
 
     pub fn get_value(&self) -> Option<&str> {
@@ -84,6 +103,7 @@ impl Table {
             self.raw_data.push(row_str);
             self.raw_data.push(edge_str.clone());
         }
+        self.displayed_data = self.raw_data.clone();
     }
     
     pub fn move_cell(&mut self, row: usize, col: usize) {
@@ -93,28 +113,32 @@ impl Table {
         self.highlight_cell(row, col);
     }
 
+    pub fn allocate_for_submenu(&self, submenu: SubMenu) -> ((usize, usize), (usize, usize)) {
+        ((3, 3), (3, 3))
+    }
+
     pub fn draw(&self) {
-        for line in self.raw_data.iter() {
+        for line in self.displayed_data.iter() {
             println!("{}", line);
         }
     }
 
     fn highlight_cell(&mut self, row: usize, col: usize) {
     
-        let col_offset_start = if col == 0 { 0 } else { self.col_offsets[col - 1] };
-        let col_offset_end = self.col_offsets[col];
+        let col_offset_start = self.col_offsets[col];
+        let col_offset_end = self.col_offsets[col + 1];
 
-        let line_start = if row == 0 { 0 } else { self.row_offsets[row - 1] };
-        let line_end = self.row_offsets[row];
+        let line_start = self.row_offsets[row];
+        let line_end = self.row_offsets[row + 1];
         
-        for line in self.raw_data[line_start..line_end+1].iter_mut() {
+        for line in self.displayed_data[line_start..line_end+1].iter_mut() {
             line.insert_str(col_offset_start, GREEN);
             line.insert_str(col_offset_end + GREEN.len() + 1, RESET);
         }
         
         let col_len = self.col_offsets.len();
-        self.col_offsets[col..col_len].iter_mut().for_each(|o| *o += GREEN.len());
-        self.col_offsets[col + 1..col_len].iter_mut().for_each(|o| *o += RESET.len());
+        self.col_offsets[col + 1..col_len].iter_mut().for_each(|o| *o += GREEN.len());
+        self.col_offsets[col + 2..col_len].iter_mut().for_each(|o| *o += RESET.len());
 
         self.selected_grid = Some((row, col));
     }
@@ -122,23 +146,21 @@ impl Table {
     fn unhighlight_cell(&mut self) {
         let (row, col) = self.selected_grid.unwrap();
 
-        let col_offset_start = if col == 0 { 0 } else { self.col_offsets[col - 1] };
-        let col_offset_end = self.col_offsets[col];
+        let col_offset_start = self.col_offsets[col];
+        let col_offset_end = self.col_offsets[col + 1];
 
-        let line_start = if row == 0 { 0 } else { self.row_offsets[row - 1] };
-        let line_end = self.row_offsets[row];
+        let line_start = self.row_offsets[row];
+        let line_end = self.row_offsets[row + 1];
         
-        for line in self.raw_data[line_start..line_end+1].iter_mut() {
+        for line in self.displayed_data[line_start..line_end+1].iter_mut() {
             line.drain(col_offset_start..(col_offset_start + GREEN.len()));
             line.drain(col_offset_end - GREEN.len() + 1..(col_offset_end + RESET.len() - GREEN.len() + 1));
         }
         
         let col_len = self.col_offsets.len();
-        self.col_offsets[col..col_len].iter_mut().for_each(|o| *o -= GREEN.len());
-        self.col_offsets[col + 1..col_len].iter_mut().for_each(|o| *o -= RESET.len());
+        self.col_offsets[col + 1..col_len].iter_mut().for_each(|o| *o -= GREEN.len());
+        self.col_offsets[col + 2..col_len].iter_mut().for_each(|o| *o -= RESET.len());
 
         self.selected_grid = None;
     }
-
-
 }
