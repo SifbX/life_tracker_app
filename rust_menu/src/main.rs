@@ -25,8 +25,12 @@ fn main() -> io::Result<()> {
     loop {
         clear_screen();
         table.draw();
+        let row_lens = table.row_byte_lengths();
+        let last_offsets = table.last_display_offsets();
+        println!("\nRow byte lengths: {:?}", row_lens);
+        println!("Last display offsets: {:?}", last_offsets);
         let value = table.get_value().unwrap_or("");
-        println!("\nSelected: {}", value);
+        println!("Selected: {}", value);
         println!("Arrow keys to move  |  Enter to select  |  q to quit");
         io::stdout().flush()?;
 

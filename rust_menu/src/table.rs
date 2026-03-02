@@ -62,7 +62,7 @@ impl Table {
 
         let raw_height = row_offsets.last().unwrap().clone();
         let raw_width = col_offsets.last().unwrap().clone();
-        let display_offsets = (0..=raw_height + 1).map(|_| (0..=raw_width + 1).map(|r| r).collect()).collect();
+        let display_offsets = (0..=raw_height).map(|_| (0..=raw_width + 1).map(|r| r).collect()).collect();
 
 
         Self {
@@ -221,6 +221,19 @@ impl Table {
         for line in self.displayed_data.iter() {
             println!("{}", line);
         }
+    }
+
+    /// Returns the byte length of each row in the displayed menu.
+    pub fn row_byte_lengths(&self) -> Vec<usize> {
+        self.displayed_data.iter().map(|s| s.len()).collect()
+    }
+
+    /// Returns the last offset of each row in display_offsets.
+    pub fn last_display_offsets(&self) -> Vec<usize> {
+        self.display_offsets
+            .iter()
+            .filter_map(|row| row.last().copied())
+            .collect()
     }
 
     fn highlight_cell(&mut self, row: usize, col: usize) {
