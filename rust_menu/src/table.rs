@@ -3,6 +3,10 @@ use itertools::Itertools;
 const GREEN: &str = "\x1b[32m";
 const RESET: &str = "\x1b[0m";
 
+
+type ViewPort = ((usize, usize), (usize, usize));
+type CellGrid = (usize, usize);
+
 pub fn clear_screen() {
     print!("\x1B[2J\x1B[1;1H");
 }
@@ -25,18 +29,20 @@ impl SubMenu {
 
 pub struct Table {
     data: Vec<Vec<&'static str>>,
-    selected_grid: Option<(usize, usize)>, // (row, col) row-major
+    selected_grid: Option<CellGrid>, // (row, col) row-major
     col_widths: Vec<usize>,
     col_offsets: Vec<usize>,   // horizontal char offsets per column
     row_offsets: Vec<usize>,   // line offsets per row
     raw_data: Vec<String>,
     displayed_data: Vec<String>,
     display_offsets: Vec<Vec<usize>>,
+    view_port: ViewPort,
+    table_size: (usize, usize),
 }
 
 impl Table {
     
-    pub fn new(data: Vec<Vec<&'static str>>) -> Self {
+    pub fn new(data: Vec<Vec<&'static str>>, view_width: usize, view_height: usize) -> Self {
         let cols = data.first().map(|r| r.len()).unwrap_or(0);
         let col_widths: Vec<usize> = (0..cols)
         .map(|c| {
@@ -64,6 +70,8 @@ impl Table {
         let raw_width = col_offsets.last().unwrap().clone();
         let display_offsets = (0..=raw_height).map(|_| (0..=raw_width + 1).map(|r| r).collect()).collect();
 
+        let vh = row_offsets.iter().rfind(|&&offset| offset <= view_height).unwrap().clone();
+        let vw = col_offsets.iter().rfind(|&&offset| offset <= view_width).unwrap().clone();
 
         Self {
             data,
@@ -74,6 +82,8 @@ impl Table {
             raw_data: Vec::new(),
             displayed_data: Vec::new(),
             display_offsets,
+            view_port: ((0, 0), (vh, vw)),
+            table_size: (view_height, view_width),
         }
     }
 
@@ -83,6 +93,20 @@ impl Table {
 
     pub fn width(&self) -> usize {
         self.col_offsets.len() - 1
+    }
+
+
+    pub fn view_cell_grid(&self) -> Option<ViewPort> {
+        if let Some((r, c)) = self.selected_grid {
+            Some(
+                (
+                    (self.row_offsets[r], self.col_offsets[c]), 
+                    (self.row_offsets[r + 1], self.col_offsets[c + 1])
+                )
+            )
+        } else {
+            None
+        }
     }
 
     pub fn get_value(&self) -> Option<&str> {
@@ -118,6 +142,43 @@ impl Table {
             self.unhighlight_cell();
         }
         self.highlight_cell(row, col);
+        if let Some((start, end)) = self.view_cell_grid() {
+            let (start_row, start_col) = start;
+            let (end_row, end_col) = end;
+            if start_row < self.view_port.0.0 {
+
+                self.view_port.0.0 = start_row;
+                self.view_port.1.0 = self.row_offsets
+                .iter()
+                .rfind(|&&offset| offset <= self.table_size.0 + start_row)
+                .unwrap_or(self.row_offsets.last().unwrap())
+                .clone();
+            }
+            if start_col < self.view_port.0.1 {
+                self.view_port.0.1 = start_col;
+                self.view_port.1.1 = self.col_offsets
+                .iter()
+                .rfind(|&&offset| offset <= self.table_size.1 + start_col)
+                .unwrap_or(self.col_offsets.last().unwrap())
+                .clone();
+            }
+            if end_row > self.view_port.1.0 {
+                self.view_port.1.0 = end_row;
+                self.view_port.0.0 = self.row_offsets
+                .iter()
+                .find(|&&offset| offset >= end_row - self.table_size.0)
+                .unwrap_or(&0)
+                .clone();
+            }
+            if end_col > self.view_port.1.1 {
+                self.view_port.1.1 = end_col;
+                self.view_port.0.1 = self.col_offsets
+                .iter()
+                .find(|&&offset| offset >= end_col - self.table_size.1)
+                .unwrap_or(&0)
+                .clone();
+            }
+        }
     }
 
     /// Returns ((row_start, row_end), (col_start, col_end)) in offset coordinates.
@@ -218,7 +279,15 @@ impl Table {
     }
 
     pub fn draw(&self) {
-        for line in self.displayed_data.iter() {
+        let (start, end) = self.view_port;
+        let (start_row, start_col) = start;
+        let (end_row, end_col) = end;
+
+
+        for idx in start_row..end_row+1 {
+            let start_offset = self.display_offsets[idx][start_col];
+            let end_offset = self.display_offsets[idx][end_col + 1];
+            let line = &self.displayed_data[idx][start_offset..end_offset];
             println!("{}", line);
         }
     }
@@ -251,7 +320,7 @@ impl Table {
             line.insert_str(col_offset_start, GREEN);
             line.insert_str(col_offset_end + GREEN.len() + 1, RESET);
             self.display_offsets[idx][col_offset_start + 1..].iter_mut().for_each(|o| *o += GREEN.len());
-            self.display_offsets[idx][col_offset_end + 2..].iter_mut().for_each(|o| *o += RESET.len());
+            self.display_offsets[idx][col_offset_end + 1..].iter_mut().for_each(|o| *o += RESET.len());
         }
         
         self.selected_grid = Some((row, col));
@@ -276,7 +345,7 @@ impl Table {
             line.drain(start_offset..(start_offset + GREEN.len()));
             line.drain(end_offset - GREEN.len()..(end_offset + RESET.len() - GREEN.len()));
             self.display_offsets[idx][col_offset_start + 1..].iter_mut().for_each(|o| *o -= GREEN.len());
-            self.display_offsets[idx][col_offset_end + 2..].iter_mut().for_each(|o| *o -= RESET.len());
+            self.display_offsets[idx][col_offset_end + 1..].iter_mut().for_each(|o| *o -= RESET.len());
         }
 
         self.selected_grid = None;
