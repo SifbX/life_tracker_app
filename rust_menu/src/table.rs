@@ -137,77 +137,84 @@ impl Table {
         self.displayed_data = self.raw_data.clone();
     }
     
+    /// Adjusts viewport row bounds when the selection moves outside the visible area.
+    fn adjust_viewport_row(&mut self, sel_start: usize, sel_end: usize) {
+        let view_start = &mut self.view_port.0.0;
+        let view_end = &mut self.view_port.1.0;
+        let offsets = &self.row_offsets;
+        let table_size = self.table_size.0;
+
+        if sel_start < *view_start {
+            *view_start = sel_start;
+            *view_end = offsets
+                .iter()
+                .rfind(|&&o| o <= table_size + sel_start)
+                .copied()
+                .unwrap_or_else(|| *offsets.last().unwrap());
+            *view_start = offsets
+                .iter()
+                .find(|&&o| o >= view_end.saturating_sub(table_size))
+                .copied()
+                .unwrap_or(0);
+        }
+        if sel_end > *view_end {
+            *view_end = sel_end;
+            *view_start = offsets
+                .iter()
+                .find(|&&o| o >= sel_end.saturating_sub(table_size))
+                .copied()
+                .unwrap_or(0);
+            *view_end = offsets
+                .iter()
+                .rfind(|&&o| o <= table_size + *view_start)
+                .copied()
+                .unwrap_or_else(|| *offsets.last().unwrap());
+        }
+    }
+
+    /// Adjusts viewport column bounds when the selection moves outside the visible area.
+    fn adjust_viewport_col(&mut self, sel_start: usize, sel_end: usize) {
+        let view_start = &mut self.view_port.0.1;
+        let view_end = &mut self.view_port.1.1;
+        let offsets = &self.col_offsets;
+        let table_size = self.table_size.1;
+
+        if sel_start < *view_start {
+            *view_start = sel_start;
+            *view_end = offsets
+                .iter()
+                .rfind(|&&o| o <= table_size + sel_start)
+                .copied()
+                .unwrap_or_else(|| *offsets.last().unwrap());
+            *view_start = offsets
+                .iter()
+                .find(|&&o| o >= view_end.saturating_sub(table_size))
+                .copied()
+                .unwrap_or(0);
+        }
+        if sel_end > *view_end {
+            *view_end = sel_end;
+            *view_start = offsets
+                .iter()
+                .find(|&&o| o >= sel_end.saturating_sub(table_size))
+                .copied()
+                .unwrap_or(0);
+            *view_end = offsets
+                .iter()
+                .rfind(|&&o| o <= table_size + *view_start)
+                .copied()
+                .unwrap_or_else(|| *offsets.last().unwrap());
+        }
+    }
+
     pub fn move_cell(&mut self, row: usize, col: usize) {
         if let Some((_r, _c)) = self.selected_grid {
             self.unhighlight_cell();
         }
         self.highlight_cell(row, col);
         if let Some((start, end)) = self.view_cell_grid() {
-            let (start_row, start_col) = start;
-            let (end_row, end_col) = end;
-            if start_row < self.view_port.0.0 {
-
-                self.view_port.0.0 = start_row;
-
-                self.view_port.1.0 = self.row_offsets
-                .iter()
-                .rfind(|&&offset| offset <= self.table_size.0 + start_row)
-                .unwrap_or(self.row_offsets.last().unwrap())
-                .clone();
-
-                self.view_port.0.0 = self.row_offsets
-                .iter()
-                .find(|&&offset| offset >= self.view_port.1.0 - self.table_size.0)
-                .unwrap_or(&0)
-                .clone();
-
-            }
-            if start_col < self.view_port.0.1 {
-                self.view_port.0.1 = start_col;
-
-                self.view_port.1.1 = self.col_offsets
-                .iter()
-                .rfind(|&&offset| offset <= self.table_size.1 + start_col)
-                .unwrap_or(self.col_offsets.last().unwrap())
-                .clone();
-
-                self.view_port.0.1 = self.col_offsets
-                .iter()
-                .find(|&&offset| offset >= self.view_port.1.1.saturating_sub(self.table_size.1))
-                .unwrap_or(&0)
-                .clone();
-
-            }
-            if end_row > self.view_port.1.0 {
-                self.view_port.1.0 = end_row;
-
-                self.view_port.0.0 = self.row_offsets
-                .iter()
-                .find(|&&offset| offset >= end_row - self.table_size.0)
-                .unwrap_or(&0)
-                .clone();
-
-                self.view_port.1.0 = self.row_offsets
-                .iter()
-                .rfind(|&&offset| offset <= self.table_size.0 + self.view_port.0.0)
-                .unwrap_or(self.row_offsets.last().unwrap())
-                .clone();
-            }
-            if end_col > self.view_port.1.1 {
-                self.view_port.1.1 = end_col;
-
-                self.view_port.0.1 = self.col_offsets
-                .iter()
-                .find(|&&offset| offset >= end_col - self.table_size.1)
-                .unwrap_or(&0)
-                .clone();
-
-                self.view_port.1.1 = self.col_offsets
-                .iter()
-                .rfind(|&&offset| offset <= self.table_size.1 + self.view_port.0.1)
-                .unwrap_or(self.col_offsets.last().unwrap())
-                .clone();
-            }
+            self.adjust_viewport_row(start.0, end.0);
+            self.adjust_viewport_col(start.1, end.1);
         }
     }
 
