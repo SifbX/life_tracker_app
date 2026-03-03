@@ -148,42 +148,69 @@ impl Table {
             if start_row < self.view_port.0.0 {
 
                 self.view_port.0.0 = start_row;
+
                 self.view_port.1.0 = self.row_offsets
                 .iter()
                 .rfind(|&&offset| offset <= self.table_size.0 + start_row)
                 .unwrap_or(self.row_offsets.last().unwrap())
                 .clone();
+
+                self.view_port.0.0 = self.row_offsets
+                .iter()
+                .find(|&&offset| offset >= self.view_port.1.0 - self.table_size.0)
+                .unwrap_or(&0)
+                .clone();
+
             }
             if start_col < self.view_port.0.1 {
                 self.view_port.0.1 = start_col;
+
                 self.view_port.1.1 = self.col_offsets
                 .iter()
                 .rfind(|&&offset| offset <= self.table_size.1 + start_col)
                 .unwrap_or(self.col_offsets.last().unwrap())
                 .clone();
+
+                self.view_port.0.1 = self.col_offsets
+                .iter()
+                .find(|&&offset| offset >= self.view_port.1.1.saturating_sub(self.table_size.1))
+                .unwrap_or(&0)
+                .clone();
+
             }
             if end_row > self.view_port.1.0 {
                 self.view_port.1.0 = end_row;
+
                 self.view_port.0.0 = self.row_offsets
                 .iter()
                 .find(|&&offset| offset >= end_row - self.table_size.0)
                 .unwrap_or(&0)
                 .clone();
+
+                self.view_port.1.0 = self.row_offsets
+                .iter()
+                .rfind(|&&offset| offset <= self.table_size.0 + self.view_port.0.0)
+                .unwrap_or(self.row_offsets.last().unwrap())
+                .clone();
             }
             if end_col > self.view_port.1.1 {
                 self.view_port.1.1 = end_col;
+
                 self.view_port.0.1 = self.col_offsets
                 .iter()
                 .find(|&&offset| offset >= end_col - self.table_size.1)
                 .unwrap_or(&0)
                 .clone();
+
+                self.view_port.1.1 = self.col_offsets
+                .iter()
+                .rfind(|&&offset| offset <= self.table_size.1 + self.view_port.0.1)
+                .unwrap_or(self.col_offsets.last().unwrap())
+                .clone();
             }
         }
     }
 
-    /// Returns ((row_start, row_end), (col_start, col_end)) in offset coordinates.
-    /// Searches for space near selected_grid: right first, then bottom, then left, then top.
-    /// For each direction, tries align-with-start first, then align-with-end.
     pub fn allocate_for_submenu(&self, submenu: &SubMenu) -> Option<((usize, usize), (usize, usize))> {
         let (row, col) = self.selected_grid?;
         let menu_height = submenu.height;
