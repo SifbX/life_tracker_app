@@ -28,8 +28,8 @@ impl SubMenu {
 
 
 pub struct Table {
-    data: Vec<Vec<&'static str>>,
-    selected_grid: Option<CellGrid>, // (row, col) row-major
+    grid: Vec<Vec<&'static str>>, // (rows+1) x (cols+1): row0=header, col0=header, [0][0]=corner
+    selected_grid: Option<CellGrid>, // (row, col) into grid
     col_widths: Vec<usize>,
     col_offsets: Vec<usize>,   // horizontal char offsets per column
     row_offsets: Vec<usize>,   // line offsets per row
@@ -42,29 +42,51 @@ pub struct Table {
 
 impl Table {
     
-    pub fn new(data: Vec<Vec<&'static str>>, view_width: usize, view_height: usize) -> Self {
+    pub fn new(
+        data: Vec<Vec<&'static str>>,
+        header_row: Vec<&'static str>,
+        header_col: Vec<&'static str>,
+        view_width: usize,
+        view_height: usize,
+    ) -> Self {
         let cols = data.first().map(|r| r.len()).unwrap_or(0);
-        let col_widths: Vec<usize> = (0..cols)
-        .map(|c| {
-            data.iter()
-            .filter_map(|row| row.get(c))
-            .map(|cell| cell.len())
-            .max()
-            .unwrap_or(0)
-        })
-        .collect();
-    
+        let rows = data.len();
+
+        let mut grid = vec![vec![""; cols + 1]; rows + 1];
+        grid[0][0] = "";
+        for c in 0..cols {
+            grid[0][c + 1] = header_row.get(c).copied().unwrap_or("");
+        }
+        for r in 0..rows {
+            grid[r + 1][0] = header_col.get(r).copied().unwrap_or("");
+            for c in 0..cols {
+                grid[r + 1][c + 1] = data[r][c];
+            }
+        }
+
+        let col_widths: Vec<usize> = (0..=cols)
+            .map(|c| {
+                grid.iter()
+                    .filter_map(|row| row.get(c))
+                    .map(|cell| cell.len())
+                    .max()
+                    .unwrap_or(0)
+            })
+            .collect();
+
         let mut col_offsets: Vec<usize> = col_widths
-        .iter()
-        .scan(0, |acc, val| {
-            *acc += val + 3;
-            Some(*acc)
-        })
-        .collect();
+            .iter()
+            .scan(0, |acc, val| {
+                *acc += val + 3;
+                Some(*acc)
+            })
+            .collect();
         col_offsets.insert(0, 0);
 
-        let rows = data.len();
-        let row_offsets: Vec<usize> = (0..=rows).map(|r| r * 2).collect();
+        let mut row_offsets: Vec<usize> = vec![1, 2];
+        for r in 2..=rows + 1 {
+            row_offsets.push(2 * r);
+        }
 
         let raw_height = row_offsets.last().unwrap().clone();
         let raw_width = col_offsets.last().unwrap().clone();
@@ -74,7 +96,7 @@ impl Table {
         let vw = col_offsets.iter().rfind(|&&offset| offset <= view_width).unwrap().clone();
 
         Self {
-            data,
+            grid,
             selected_grid: None,
             col_widths,
             col_offsets,
@@ -110,11 +132,7 @@ impl Table {
     }
 
     pub fn get_value(&self) -> Option<&str> {
-        if let Some((r, c)) = self.selected_grid {
-            Some(&self.data[r][c])
-        } else {
-            None
-        }
+        self.selected_grid.map(|(r, c)| self.grid[r][c])
     }
 
     pub fn compile(&mut self) {
@@ -125,7 +143,7 @@ impl Table {
             .join("") + "+";
 
         self.raw_data.push(edge_str.clone());
-        for row in self.data.iter() {
+        for row in self.grid.iter() {
             let row_str = self.col_widths
                 .iter()
                 .zip(row.iter())
@@ -220,6 +238,9 @@ impl Table {
 
     pub fn allocate_for_submenu(&self, submenu: &SubMenu) -> Option<((usize, usize), (usize, usize))> {
         let (row, col) = self.selected_grid?;
+        if row == 0 || col == 0 {
+            return None;
+        }
         let menu_height = submenu.height;
         let menu_width = submenu.width;
 
