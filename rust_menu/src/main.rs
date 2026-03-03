@@ -8,24 +8,20 @@ use table::{clear_screen, Table};
 use std::io::{self, Write};
 
 fn main() -> io::Result<()> {
-    let mut table = Table::new(
-        vec![
-            vec!["12232322", "43", "74", "2", "3", "6"],
-            vec!["23", "54", "85", "32", "4", "7"],
-            vec!["34", "65", "96", "43", "5", "8"],
-            vec!["45", "76", "107", "54", "6", "9"],
-            vec!["56", "87", "118", "54", "6", "10"],
-        ],
-        vec!["Col A", "Col B", "Col C", "Col D", "Col E", "Col F"],
-        vec!["Row 1", "Row 2", "Row 3", "Row 4", "Row 5"],
-        40,
-        6,
-    );
+    let mut table = Table::new(40, 6);
+    table.add_data(vec![
+        vec!["12232322", "43", "74", "2", "3", "6"],
+        vec!["23", "54", "85", "32", "4", "7"],
+        vec!["34", "65", "96", "43", "5", "8"],
+        vec!["45", "76", "107", "54", "6", "9"],
+        vec!["56", "87", "118", "54", "6", "10"],
+    ]);
+    table.add_header_rows(vec!["Col A", "Col B", "Col C", "Col D", "Col E", "Col F"]);
+    table.add_header_cols(vec!["Row 1", "Row 2", "Row 3", "Row 4", "Row 5"]);
+    table.compile();
 
     let mut r = 0;
     let mut c = 0;
-
-    table.compile();
     table.move_cell(r, c);
 
     loop {

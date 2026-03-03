@@ -28,11 +28,14 @@ impl SubMenu {
 
 
 pub struct Table {
-    grid: Vec<Vec<&'static str>>, // (rows+1) x (cols+1): row0=header, col0=header, [0][0]=corner
-    selected_grid: Option<CellGrid>, // (row, col) into grid
+    data: Vec<Vec<&'static str>>,
+    header_row: Vec<&'static str>,
+    header_col: Vec<&'static str>,
+    grid: Vec<Vec<&'static str>>, // (rows+1) x (cols+1), built in compile
+    selected_grid: Option<CellGrid>,
     col_widths: Vec<usize>,
-    col_offsets: Vec<usize>,   // horizontal char offsets per column
-    row_offsets: Vec<usize>,   // line offsets per row
+    col_offsets: Vec<usize>,
+    row_offsets: Vec<usize>,
     raw_data: Vec<String>,
     displayed_data: Vec<String>,
     display_offsets: Vec<Vec<usize>>,
@@ -41,32 +44,56 @@ pub struct Table {
 }
 
 impl Table {
-    
-    pub fn new(
-        data: Vec<Vec<&'static str>>,
-        header_row: Vec<&'static str>,
-        header_col: Vec<&'static str>,
-        view_width: usize,
-        view_height: usize,
-    ) -> Self {
-        let cols = data.first().map(|r| r.len()).unwrap_or(0);
-        let rows = data.len();
+    pub fn new(view_width: usize, view_height: usize) -> Self {
+        Self {
+            data: Vec::new(),
+            header_row: Vec::new(),
+            header_col: Vec::new(),
+            grid: Vec::new(),
+            selected_grid: None,
+            col_widths: Vec::new(),
+            col_offsets: vec![0],
+            row_offsets: vec![0],
+            raw_data: Vec::new(),
+            displayed_data: Vec::new(),
+            display_offsets: Vec::new(),
+            view_port: ((0, 0), (0, 0)),
+            table_size: (view_height, view_width),
+        }
+    }
 
-        let mut grid = vec![vec![""; cols + 1]; rows + 1];
-        grid[0][0] = "";
+    pub fn add_data(&mut self, data: Vec<Vec<&'static str>>) {
+        self.data = data;
+    }
+
+    pub fn add_header_rows(&mut self, labels: Vec<&'static str>) {
+        self.header_row = labels;
+    }
+
+    pub fn add_header_cols(&mut self, labels: Vec<&'static str>) {
+        self.header_col = labels;
+    }
+
+    pub fn compile(&mut self) {
+        let cols = self.data.first().map(|r| r.len()).unwrap_or(0);
+        let rows = self.data.len();
+
+        self.grid = vec![vec![""; cols + 1]; rows + 1];
+        self.grid[0][0] = "";
         for c in 0..cols {
-            grid[0][c + 1] = header_row.get(c).copied().unwrap_or("");
+            self.grid[0][c + 1] = self.header_row.get(c).copied().unwrap_or("");
         }
         for r in 0..rows {
-            grid[r + 1][0] = header_col.get(r).copied().unwrap_or("");
+            self.grid[r + 1][0] = self.header_col.get(r).copied().unwrap_or("");
             for c in 0..cols {
-                grid[r + 1][c + 1] = data[r][c];
+                self.grid[r + 1][c + 1] = self.data[r][c];
             }
         }
 
-        let col_widths: Vec<usize> = (0..=cols)
+        self.col_widths = (0..=cols)
             .map(|c| {
-                grid.iter()
+                self.grid
+                    .iter()
                     .filter_map(|row| row.get(c))
                     .map(|cell| cell.len())
                     .max()
@@ -74,39 +101,59 @@ impl Table {
             })
             .collect();
 
-        let mut col_offsets: Vec<usize> = col_widths
+        self.col_offsets = self.col_widths
             .iter()
             .scan(0, |acc, val| {
                 *acc += val + 3;
                 Some(*acc)
             })
             .collect();
-        col_offsets.insert(0, 0);
+        self.col_offsets.insert(0, 0);
 
-        let mut row_offsets: Vec<usize> = vec![1, 2];
+        self.row_offsets = vec![1, 2];
         for r in 2..=rows + 1 {
-            row_offsets.push(2 * r);
+            self.row_offsets.push(2 * r);
         }
 
-        let raw_height = row_offsets.last().unwrap().clone();
-        let raw_width = col_offsets.last().unwrap().clone();
-        let display_offsets = (0..=raw_height).map(|_| (0..=raw_width + 1).map(|r| r).collect()).collect();
+        let raw_height = *self.row_offsets.last().unwrap();
+        let raw_width = *self.col_offsets.last().unwrap();
+        self.display_offsets = (0..=raw_height)
+            .map(|_| (0..=raw_width + 1).collect())
+            .collect();
 
-        let vh = row_offsets.iter().rfind(|&&offset| offset <= view_height).unwrap().clone();
-        let vw = col_offsets.iter().rfind(|&&offset| offset <= view_width).unwrap().clone();
+        let vh = self
+            .row_offsets
+            .iter()
+            .rfind(|&&o| o <= self.table_size.0)
+            .copied()
+            .unwrap_or(0);
+        let vw = self
+            .col_offsets
+            .iter()
+            .rfind(|&&o| o <= self.table_size.1)
+            .copied()
+            .unwrap_or(0);
+        self.view_port = ((0, 0), (vh, vw));
 
-        Self {
-            grid,
-            selected_grid: None,
-            col_widths,
-            col_offsets,
-            row_offsets,
-            raw_data: Vec::new(),
-            displayed_data: Vec::new(),
-            display_offsets,
-            view_port: ((0, 0), (vh, vw)),
-            table_size: (view_height, view_width),
+        self.raw_data.clear();
+        let edge_str: String = self
+            .col_widths
+            .iter()
+            .map(|w| "+".to_string() + &"-".repeat(*w + 2))
+            .join("") + "+";
+
+        self.raw_data.push(edge_str.clone());
+        for row in self.grid.iter() {
+            let row_str = self
+                .col_widths
+                .iter()
+                .zip(row.iter())
+                .map(|(w, cell)| format!("| {:^width$} ", cell, width = w))
+                .join("") + "|";
+            self.raw_data.push(row_str);
+            self.raw_data.push(edge_str.clone());
         }
+        self.displayed_data = self.raw_data.clone();
     }
 
     pub fn height(&self) -> usize {
@@ -135,25 +182,6 @@ impl Table {
         self.selected_grid.map(|(r, c)| self.grid[r][c])
     }
 
-    pub fn compile(&mut self) {
-        self.raw_data.clear();
-        let edge_str: String = self.col_widths
-            .iter()
-            .map(|w| "+".to_string() + &"-".repeat(*w + 2))
-            .join("") + "+";
-
-        self.raw_data.push(edge_str.clone());
-        for row in self.grid.iter() {
-            let row_str = self.col_widths
-                .iter()
-                .zip(row.iter())
-                .map(|(w, cell)| format!("| {:^width$} ", cell, width = w))
-                .join("") + "|";
-            self.raw_data.push(row_str);
-            self.raw_data.push(edge_str.clone());
-        }
-        self.displayed_data = self.raw_data.clone();
-    }
     
     /// Adjusts viewport row bounds when the selection moves outside the visible area.
     fn adjust_viewport_row(&mut self, sel_start: usize, sel_end: usize) {
