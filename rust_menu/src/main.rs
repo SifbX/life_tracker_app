@@ -8,7 +8,7 @@ use table::{clear_screen, Table};
 use std::io::{self, Write};
 
 fn main() -> io::Result<()> {
-    let mut table = Table::new(40, 6);
+    let mut table = Table::new(80, 12);
     table.add_data(vec![
         vec!["A1", "B1", "C1", "D1", "E1", "F1", "G1", "H1", "I1", "J1"],
         vec!["A2", "B2", "C2", "D2", "E2", "F2", "G2", "H2", "I2", "J2"],
