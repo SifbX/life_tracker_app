@@ -1,4 +1,4 @@
-use super::SubMenu;
+use crate::submenu::AllocationContext;
 
 const GREEN: &str = "\x1b[32m";
 const RESET: &str = "\x1b[0m";
@@ -76,89 +76,16 @@ impl PhysicalTable {
         }
     }
 
-    pub fn allocate_for_submenu(&self, submenu: &SubMenu) -> Option<((usize, usize), (usize, usize))> {
-        let (row, col) = self.selected_grid?;
-        if row == 0 || col == 0 {
-            return None;
+    /// Builds the context needed for submenu allocation.
+    /// Use with `SubMenu::allocate(ctx)`.
+    pub fn allocation_context(&self) -> AllocationContext<'_> {
+        AllocationContext {
+            row_offsets: &self.row_offsets,
+            col_offsets: &self.col_offsets,
+            view_port: self.view_port,
+            table_size: self.table_size,
+            selected_grid: self.selected_grid,
         }
-        let menu_height = submenu.height;
-        let menu_width = submenu.width;
-
-        let total_rows = self.height();
-        let total_cols = self.width();
-        let max_row_offset = self.row_offsets[total_rows];
-        let max_col_offset = self.col_offsets[total_cols];
-
-        let sel_row_start = self.row_offsets[row];
-        let sel_row_end = self.row_offsets[row + 1];
-        let sel_col_start = self.col_offsets[col];
-        let sel_col_end = self.col_offsets[col + 1];
-
-        let right_width = max_col_offset - sel_col_end;
-        if right_width >= menu_width {
-            if sel_row_start + menu_height <= max_row_offset {
-                return Some((
-                    (sel_row_start, sel_row_start + menu_height),
-                    (sel_col_end, sel_col_end + menu_width),
-                ));
-            }
-            if sel_row_end >= menu_height {
-                return Some((
-                    (sel_row_end - menu_height, sel_row_end),
-                    (sel_col_end, sel_col_end + menu_width),
-                ));
-            }
-        }
-
-        let bottom_height = max_row_offset - sel_row_end;
-        if bottom_height >= menu_height {
-            if sel_col_start + menu_width <= max_col_offset {
-                return Some((
-                    (sel_row_end, sel_row_end + menu_height),
-                    (sel_col_start, sel_col_start + menu_width),
-                ));
-            }
-            if sel_col_end >= menu_width {
-                return Some((
-                    (sel_row_end, sel_row_end + menu_height),
-                    (sel_col_end - menu_width, sel_col_end),
-                ));
-            }
-        }
-
-        let left_width = sel_col_start;
-        if left_width >= menu_width {
-            if sel_row_start + menu_height <= max_row_offset {
-                return Some((
-                    (sel_row_start, sel_row_start + menu_height),
-                    (sel_col_start - menu_width, sel_col_start),
-                ));
-            }
-            if sel_row_end >= menu_height {
-                return Some((
-                    (sel_row_end - menu_height, sel_row_end),
-                    (sel_col_start - menu_width, sel_col_start),
-                ));
-            }
-        }
-
-        let top_height = sel_row_start;
-        if top_height >= menu_height {
-            if sel_col_start + menu_width <= max_col_offset {
-                return Some((
-                    (sel_row_start - menu_height, sel_row_start),
-                    (sel_col_start, sel_col_start + menu_width),
-                ));
-            }
-            if sel_col_end >= menu_width {
-                return Some((
-                    (sel_row_start - menu_height, sel_row_start),
-                    (sel_col_end - menu_width, sel_col_end),
-                ));
-            }
-        }
-
-        None
     }
 
     pub fn row_byte_lengths(&self) -> Vec<usize> {

@@ -1,4 +1,5 @@
 mod table;
+mod submenu;
 
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
