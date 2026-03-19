@@ -1,3 +1,3 @@
-mod submenu;
+mod logical;
 
-pub use submenu::{AllocationContext, SubMenu};
+pub use logical::{AllocationContext, SubMenu};
