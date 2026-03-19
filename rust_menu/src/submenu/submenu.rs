@@ -8,6 +8,9 @@ pub struct AllocationContext<'a> {
     pub selected_grid: Option<(usize, usize)>,
 }
 
+const HIGHLIGHT: &str = "\x1b[32m"; // Green text only
+const RESET: &str = "\x1b[0m";
+
 pub struct SubMenu {
     pub options: Vec<&'static str>,
     pub height: usize,
@@ -17,8 +20,29 @@ pub struct SubMenu {
 impl SubMenu {
     pub fn new(options: Vec<&'static str>) -> Self {
         let height = options.len() * 2 + 2;
-        let width = options.iter().map(|o| o.len()).max().unwrap() + 4;
+        let width = options.iter().map(|o| o.len()).max().unwrap_or(0) + 4;
         Self { options, height, width }
+    }
+
+    /// Renders the submenu as lines for display. `focused_index` highlights that option.
+    /// Matches SubMenu height: 2 lines per option + top/bottom border.
+    pub fn render_lines(&self, focused_index: usize) -> Vec<String> {
+        let width = self.width;
+        let border = "+".to_string() + &"-".repeat(width.saturating_sub(2)) + "+";
+        let spacer = "|".to_string() + &" ".repeat(width.saturating_sub(2)) + "|";
+        let mut lines = vec![border.clone()];
+        for (i, opt) in self.options.iter().enumerate() {
+            let padded = format!("| {:<width$} |", opt, width = width.saturating_sub(4));
+            let highlight = i == focused_index;
+            lines.push(if highlight {
+                format!("{}{}{}", HIGHLIGHT, padded, RESET)
+            } else {
+                padded
+            });
+            lines.push(spacer.clone());
+        }
+        lines.push(border);
+        lines
     }
 
     /// Allocates display coordinates for this submenu relative to the selected cell.

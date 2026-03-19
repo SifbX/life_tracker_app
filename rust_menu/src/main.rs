@@ -2,11 +2,14 @@ mod table;
 mod submenu;
 
 use crossterm::{
+    cursor::MoveTo,
     event::{self, Event, KeyCode, KeyEventKind},
+    execute,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use table::{clear_screen, LogicalTable};
 use std::io::{self, Write};
+use submenu::SubMenu;
+use table::{clear_screen, LogicalTable};
 
 fn main() -> io::Result<()> {
     let mut table = LogicalTable::new(80, 12);
@@ -26,20 +29,39 @@ fn main() -> io::Result<()> {
     table.add_header_cols(vec!["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10"]);
     let mut compiled = table.compile();
 
+    let submenu = SubMenu::new(vec!["Option 1", "Option 2", "Option 3"]);
+
     let mut r = 0;
     let mut c = 0;
+    let mut submenu_active = false;
+    let mut submenu_focused = 0usize;
     compiled.move_cell(r, c);
 
     loop {
         clear_screen();
         compiled.show();
-        let row_lens = compiled.row_byte_lengths();
-        let last_offsets = compiled.last_display_offsets();
-        println!("\nRow byte lengths: {:?}", row_lens);
-        println!("Last display offsets: {:?}", last_offsets);
+
+        if submenu_active {
+            let ctx = compiled.allocation_context();
+            if let Some(rect) = submenu.allocate(&ctx) {
+                let (term_col, term_row) = compiled.submenu_terminal_origin(rect);
+                let lines = submenu.render_lines(submenu_focused);
+                let mut stdout = io::stdout();
+                for (i, line) in lines.iter().enumerate() {
+                    execute!(stdout, MoveTo(term_col, term_row + i as u16))?;
+                    write!(stdout, "{}", line)?;
+                }
+                stdout.flush()?;
+            }
+        }
+
         let value = compiled.get_value().unwrap_or("");
-        println!("Selected: {}", value);
-        println!("Arrow keys to move  |  Enter to select  |  q to quit");
+        println!("\nSelected: {}", value);
+        if submenu_active {
+            println!("Arrow keys to move option  |  Enter (no-op)  |  Esc to close submenu  |  q to quit");
+        } else {
+            println!("Arrow keys to move  |  Enter to open submenu  |  q to quit");
+        }
         io::stdout().flush()?;
 
         enable_raw_mode()?;
@@ -49,39 +71,68 @@ fn main() -> io::Result<()> {
                 if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
                     continue;
                 }
-                let rows = compiled.height();
-                let cols = compiled.width();
-                match key.code {
-                    KeyCode::Up => {
-                        r = r.saturating_sub(1);
-                        compiled.move_cell(r, c);
-                        break;
+                if submenu_active {
+                    match key.code {
+                        KeyCode::Up => {
+                            submenu_focused = submenu_focused.saturating_sub(1);
+                            break;
+                        }
+                        KeyCode::Down => {
+                            submenu_focused = (submenu_focused + 1).min(submenu.options.len().saturating_sub(1));
+                            break;
+                        }
+                        KeyCode::Enter => {
+                            // No-op for now
+                            break;
+                        }
+                        KeyCode::Esc => {
+                            submenu_active = false;
+                            break;
+                        }
+                        KeyCode::Char('q') => {
+                            disable_raw_mode()?;
+                            return Ok(());
+                        }
+                        _ => {}
                     }
-                    KeyCode::Down => {
-                        r = (r + 1).min(rows - 1);
-                        compiled.move_cell(r, c);
-                        break;
+                } else {
+                    let rows = compiled.height();
+                    let cols = compiled.width();
+                    match key.code {
+                        KeyCode::Up => {
+                            r = r.saturating_sub(1);
+                            compiled.move_cell(r, c);
+                            break;
+                        }
+                        KeyCode::Down => {
+                            r = (r + 1).min(rows - 1);
+                            compiled.move_cell(r, c);
+                            break;
+                        }
+                        KeyCode::Left => {
+                            c = c.saturating_sub(1);
+                            compiled.move_cell(r, c);
+                            break;
+                        }
+                        KeyCode::Right => {
+                            c = (c + 1).min(cols - 1);
+                            compiled.move_cell(r, c);
+                            break;
+                        }
+                        KeyCode::Enter => {
+                            let ctx = compiled.allocation_context();
+                            if submenu.allocate(&ctx).is_some() {
+                                submenu_active = true;
+                                submenu_focused = 0;
+                            }
+                            break;
+                        }
+                        KeyCode::Char('q') => {
+                            disable_raw_mode()?;
+                            return Ok(());
+                        }
+                        _ => {}
                     }
-                    KeyCode::Left => {
-                        c = c.saturating_sub(1);
-                        compiled.move_cell(r, c);
-                        break;
-                    }
-                    KeyCode::Right => {
-                        c = (c + 1).min(cols - 1);
-                        compiled.move_cell(r, c);
-                        break;
-                    }
-                    KeyCode::Enter => {
-                        disable_raw_mode()?;
-                        println!("\nYou selected: {}", value);
-                        return Ok(());
-                    }
-                    KeyCode::Char('q') => {
-                        disable_raw_mode()?;
-                        return Ok(());
-                    }
-                    _ => {}
                 }
             }
         }

@@ -88,6 +88,27 @@ impl PhysicalTable {
         }
     }
 
+    /// Returns (column, row) in 0-based terminal coordinates for the top-left of the submenu rect.
+    /// The rect is ((row_start, row_end), (col_start, col_end)) from SubMenu::allocate.
+    pub fn submenu_terminal_origin(
+        &self,
+        ((row_start, _), (col_start, _)): ((usize, usize), (usize, usize)),
+    ) -> (u16, u16) {
+        let (view_start, _) = self.view_port;
+        let (v_row, v_col) = view_start;
+        let term_row = row_start.saturating_sub(v_row) as u16;
+        let col_offset = self.display_offsets
+            .get(row_start)
+            .and_then(|row| row.get(col_start).copied())
+            .unwrap_or(col_start);
+        let view_col_offset = self.display_offsets
+            .get(row_start)
+            .and_then(|row| row.get(v_col).copied())
+            .unwrap_or(v_col);
+        let term_col = col_offset.saturating_sub(view_col_offset) as u16;
+        (term_col, term_row)
+    }
+
     pub fn row_byte_lengths(&self) -> Vec<usize> {
         self.displayed_data.iter().map(|s| s.len()).collect()
     }
