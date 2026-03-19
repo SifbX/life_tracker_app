@@ -98,25 +98,22 @@ impl LogicalTable {
             .map(|w| "+".to_string() + &"-".repeat(*w + 2))
             .join("") + "+";
 
-        let mut raw_data = Vec::new();
-        raw_data.push(edge_str.clone());
+        let mut displayed_data = Vec::new();
+        displayed_data.push(edge_str.clone());
         for row in grid.iter() {
             let row_str = col_widths
                 .iter()
                 .zip(row.iter())
                 .map(|(w, cell)| format!("| {:^width$} ", cell, width = w))
                 .join("") + "|";
-            raw_data.push(row_str);
-            raw_data.push(edge_str.clone());
+            displayed_data.push(row_str);
+            displayed_data.push(edge_str.clone());
         }
-        let displayed_data = raw_data.clone();
 
         PhysicalTable::new(
             grid,
-            col_widths,
             col_offsets,
             row_offsets,
-            raw_data,
             displayed_data,
             display_offsets,
             view_port,

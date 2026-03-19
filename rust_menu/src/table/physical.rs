@@ -10,10 +10,8 @@ type CellGrid = (usize, usize);
 pub struct PhysicalTable {
     grid: Vec<Vec<&'static str>>,
     selected_grid: Option<CellGrid>,
-    col_widths: Vec<usize>,
     col_offsets: Vec<usize>,
     row_offsets: Vec<usize>,
-    raw_data: Vec<String>,
     displayed_data: Vec<String>,
     display_offsets: Vec<Vec<usize>>,
     view_port: ViewPort,
@@ -23,10 +21,8 @@ pub struct PhysicalTable {
 impl PhysicalTable {
     pub(crate) fn new(
         grid: Vec<Vec<&'static str>>,
-        col_widths: Vec<usize>,
         col_offsets: Vec<usize>,
         row_offsets: Vec<usize>,
-        raw_data: Vec<String>,
         displayed_data: Vec<String>,
         display_offsets: Vec<Vec<usize>>,
         view_port: ViewPort,
@@ -35,10 +31,8 @@ impl PhysicalTable {
         Self {
             grid,
             selected_grid: None,
-            col_widths,
             col_offsets,
             row_offsets,
-            raw_data,
             displayed_data,
             display_offsets,
             view_port,
